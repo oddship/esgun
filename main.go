@@ -50,7 +50,7 @@ func main() {
 			i++
 		case args[i] == "--profile":
 			profileSet = true
-			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+			if i+1 >= len(args) || args[i+1] == "" || strings.HasPrefix(args[i+1], "-") {
 				flagErr = fmt.Errorf("--profile requires a name")
 			} else {
 				profile = args[i+1]

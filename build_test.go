@@ -213,3 +213,14 @@ func TestUnknownAndSelectedProfiles(t *testing.T) {
 		t.Fatalf("expected legacy profile-selection error, got %v", err)
 	}
 }
+
+func TestWatchRejectsUnknownProfileBeforeWaiting(t *testing.T) {
+	dir := fixtureProject(t)
+	err := watch(dir, "missing")
+	if err == nil || !strings.Contains(err.Error(), "unknown profile") {
+		t.Fatalf("expected unknown profile error, got %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, "dist")); !os.IsNotExist(statErr) {
+		t.Fatalf("watch mutated output before rejecting the profile: %v", statErr)
+	}
+}

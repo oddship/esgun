@@ -16,8 +16,11 @@ func watch(dir, profile string) error {
 	if dir, err = canonicalProjectDir(dir); err != nil {
 		return err
 	}
-	cfg, _, err := loadBuildManifest(dir)
+	cfg, profiled, err := loadBuildManifest(dir)
 	if err != nil {
+		return err
+	}
+	if err := validateProfileSelection(cfg, profiled, profile); err != nil {
 		return err
 	}
 	watchDirs := []string{"src"}

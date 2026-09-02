@@ -42,6 +42,9 @@ func build(dir, selectedProfile string) error {
 	if err != nil {
 		return err
 	}
+	if err := validateProfileSelection(cfg, profiled, selectedProfile); err != nil {
+		return err
+	}
 	if cfg.Target != "" && cfg.Target != "es2020" && cfg.Target != "esnext" {
 		return fmt.Errorf("target must be es2020 or esnext")
 	}
@@ -60,9 +63,6 @@ func build(dir, selectedProfile string) error {
 		return err
 	}
 	if !profiled {
-		if selectedProfile != "" {
-			return fmt.Errorf("--profile requires a manifest with named profiles")
-		}
 		return buildLegacy(projectDir, rootPath, cfg)
 	}
 	profiles, err := prepareProfiles(projectDir, rootPath, cfg, selectedProfile)
@@ -79,6 +79,19 @@ func build(dir, selectedProfile string) error {
 		return err
 	}
 	fmt.Printf("dist ready: %s\n", rootPath)
+	return nil
+}
+
+func validateProfileSelection(cfg *buildManifest, profiled bool, selected string) error {
+	if selected == "" {
+		return nil
+	}
+	if !profiled {
+		return fmt.Errorf("--profile requires a manifest with named profiles")
+	}
+	if _, ok := cfg.Profiles[selected]; !ok {
+		return fmt.Errorf("unknown profile %q", selected)
+	}
 	return nil
 }
 
