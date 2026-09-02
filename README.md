@@ -24,7 +24,7 @@ binary that ships a frontend still needs node/npm/bun installed everywhere it's
 built, for what is usually a handful of leaf dependencies copied verbatim into
 the binary. esgun replaces that with Go: the registry protocol, semver
 resolution, lockfile management, security auditing, and bundling all run as Go
-(esbuild as a library), so **Go 1.26 is the only toolchain requirement**.
+(esbuild as a library), so **Go 1.25.10 or newer is the only toolchain requirement**.
 
 As a deliberate security posture, esgun **never runs lifecycle scripts**:
 nothing in the dependency tree ever executes during install, and it verifies
@@ -47,7 +47,7 @@ go install github.com/oddship/esgun@latest
 go run github.com/oddship/esgun@latest <cmd>
 ```
 
-**3. Go tool dependency (recommended for projects, Go 1.24+):** pin esgun in the
+**3. Go tool dependency (recommended for projects):** pin esgun in the
 project's `go.mod` so the version is locked with the rest of the toolchain and
 contributors get it automatically:
 
@@ -78,10 +78,11 @@ esgun remove <pkg>  [--dir DIR]                   # remove a dependency
 esgun update [pkg]  [--dir DIR]                   # re-resolve within declared ranges
 esgun outdated      [--dir DIR]                   # newer versions available
 esgun audit         [--dir DIR]                   # OSV vulnerability report (exit 1 on findings)
-esgun build         [--dir DIR]                   # bundle + assemble the output
-esgun watch         [--dir DIR]                   # rebuild on change
+esgun build         [--dir DIR] [--profile NAME]  # bundle + assemble the output
+esgun watch         [--dir DIR] [--profile NAME]  # rebuild on change
 
-Flags: --dir DIR (default "."), --registry URL (or ESGUN_REGISTRY), --frozen, --dev, -u
+Flags: --dir DIR (default "."), --profile NAME (build/watch only),
+--registry URL (or ESGUN_REGISTRY), --frozen, --dev, -u
 ```
 
 ## Getting started
@@ -131,6 +132,7 @@ warnings instead of errors.
 // esgun.config.json
 {
   "root": "dist",
+  "target": "esnext",
   "outdir": "dist/js",
   "entry": ["src/main.js", "src/views/*.js"],
   "resolve": ["vendor/node_modules"],
@@ -148,12 +150,77 @@ warnings instead of errors.
 `package.json` stays fully standard: deps plus a conventional `scripts` block
 (`"build": "esgun build"`, `"watch": "esgun watch"`).
 
+### Named build profiles
+
+Libraries that publish several formats can replace the legacy `entry` and
+`outdir` fields with named entry sets and profiles. Legacy manifests keep their
+original minified, split ESM behavior unchanged.
+
+```json
+{
+  "root": "dist",
+  "resolve": ["vendor/node_modules"],
+  "entrySets": {
+    "library": [
+      { "input": "src/index.js", "output": "library" }
+    ],
+    "components": [
+      { "input": "src/components/*.js", "output": "components/[name]" },
+      { "input": "src/components/*.css", "output": "components/[name]" }
+    ]
+  },
+  "profiles": {
+    "esm-readable": {
+      "entrySets": ["library", "components"],
+      "outdir": "dist",
+      "format": "esm",
+      "suffix": ".esm"
+    },
+    "iife-readable": {
+      "entrySets": ["library"],
+      "outdir": "dist",
+      "format": "iife"
+    },
+    "iife-minified": {
+      "entrySets": ["library"],
+      "outdir": "dist",
+      "format": "iife",
+      "minify": true,
+      "suffix": ".min"
+    }
+  },
+  "copies": [
+    { "from": "src/themes", "to": "dist/themes" }
+  ]
+}
+```
+
+Entry `output` values are stable paths relative to a profile's `outdir` and
+omit the generated extension. A glob input must use exactly one `[name]`
+placeholder. `suffix` is inserted before both `.js` and `.css`, so `library`
+with `"suffix": ".min"` becomes `library.min.js`.
+
+`format` is either `esm` or `iife`; `minify` and `splitting` default to false.
+IIFE profiles cannot use splitting. Self-contained component entry points
+should also leave splitting disabled. `target` defaults to the legacy `es2020`
+behavior and may be set to `esnext` globally or overridden by one profile when
+a library should preserve modern syntax for smaller published artifacts.
+
+`esgun build` executes every profile serially in lexical name order. Use
+`esgun build --profile esm-readable` to build only one. A selected build still
+replaces the complete `root` and runs the shared copies once, so it never leaves
+stale outputs from other profiles. Builds are assembled in a sibling staging
+directory and replace the previous output only after every bundle and copy
+succeeds. Output aliases and copy destinations are collision checked.
+
 ## watch
 
 Rebuilds on any change under the configured `watch` dirs (default `src`,
 100 ms debounce). Uses inotify via [fsnotify](https://github.com/fsnotify/fsnotify)
 plus a 300 ms mtime poll as a fallback, because host-mounted workspaces may not
-deliver inotify events for host-side editor writes.
+deliver inotify events for host-side editor writes. `--profile NAME` applies the
+same selection as `build`. Changes during a build coalesce into at most one
+follow-up build.
 
 ## audit
 
@@ -165,6 +232,5 @@ drop-in `npm audit` behavior for CI, without a node runtime.
 
 MVP: single-package layout, flat resolution (no workspaces/monorepos),
 no lifecycle scripts, no private-registry auth, no publish command. All by design.
-Known follow-ups: unit tests for the resolver, `go mod tidy` normalization on a
-Go 1.26 toolchain, and review of semver edge cases beyond
+Known follow-ups: unit tests for the resolver and review of semver edge cases beyond
 [Masterminds/semver](https://github.com/Masterminds/semver)'s coverage.

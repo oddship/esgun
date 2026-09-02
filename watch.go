@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -10,22 +11,42 @@ import (
 )
 
 // watch rebuilds on any change under <dir>/src, debounced (mirrors build.mjs).
-func watch(dir string) error {
+func watch(dir, profile string) error {
 	var err error
-	if dir, err = filepath.Abs(dir); err != nil {
+	if dir, err = canonicalProjectDir(dir); err != nil {
 		return err
 	}
-	if err := build(dir); err != nil {
-		fmt.Fprintf(os.Stderr, "initial build failed: %v\n", err)
-	}
-
-	cfg, err := loadBuildManifest(dir)
+	cfg, _, err := loadBuildManifest(dir)
 	if err != nil {
 		return err
 	}
 	watchDirs := []string{"src"}
 	if len(cfg.Watch) > 0 {
 		watchDirs = cfg.Watch
+	}
+	root := cfg.Root
+	if root == "" {
+		root = "dist"
+	}
+	rootPath, err := safeOutputPath(dir, root, "root")
+	if err != nil {
+		return err
+	}
+	for _, watchDir := range watchDirs {
+		path, err := safeProjectPath(dir, watchDir, "watch")
+		if err != nil {
+			return err
+		}
+		info, err := os.Stat(path)
+		if err != nil || !info.IsDir() {
+			return fmt.Errorf("watch path %q is not a directory", watchDir)
+		}
+		if pathWithin(path, rootPath) || pathWithin(rootPath, path) {
+			return fmt.Errorf("watch path %q overlaps output root", watchDir)
+		}
+	}
+	if err := build(dir, profile); err != nil {
+		fmt.Fprintf(os.Stderr, "initial build failed: %v\n", err)
 	}
 
 	watcher, err := fsnotify.NewWatcher()
@@ -56,29 +77,55 @@ func watch(dir string) error {
 			if ev.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename|fsnotify.Chmod) == 0 {
 				continue
 			}
-			scheduleBuild(&timer, dir)
+			scheduleBuild(&timer, dir, profile)
 		case err, ok := <-watcher.Errors:
 			if !ok {
 				return nil
 			}
 			fmt.Fprintf(os.Stderr, "watcher error: %v\n", err)
 		case <-poll.C:
-			if !mtimesEqual(scanMtimes(watchDirs, dir), mtimes) {
-				mtimes = scanMtimes(watchDirs, dir)
-				scheduleBuild(&timer, dir)
+			next := scanMtimes(watchDirs, dir)
+			if !mtimesEqual(next, mtimes) {
+				mtimes = next
+				scheduleBuild(&timer, dir, profile)
 			}
 		}
 	}
 }
 
 // scheduleBuild (re)starts the 100ms-debounced build timer.
-func scheduleBuild(timer **time.Timer, dir string) {
+var watchBuildState struct {
+	sync.Mutex
+	running bool
+	pending bool
+}
+
+func scheduleBuild(timer **time.Timer, dir, profile string) {
 	if *timer != nil {
 		(*timer).Stop()
 	}
 	*timer = time.AfterFunc(100*time.Millisecond, func() {
-		if err := build(dir); err != nil {
-			fmt.Fprintf(os.Stderr, "build failed: %v\n", err)
+		watchBuildState.Lock()
+		if watchBuildState.running {
+			watchBuildState.pending = true
+			watchBuildState.Unlock()
+			return
+		}
+		watchBuildState.running = true
+		watchBuildState.Unlock()
+		for {
+			if err := build(dir, profile); err != nil {
+				fmt.Fprintf(os.Stderr, "build failed: %v\n", err)
+			}
+			watchBuildState.Lock()
+			if watchBuildState.pending {
+				watchBuildState.pending = false
+				watchBuildState.Unlock()
+				continue
+			}
+			watchBuildState.running = false
+			watchBuildState.Unlock()
+			return
 		}
 	})
 }

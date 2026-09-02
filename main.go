@@ -13,10 +13,10 @@
 //	esgun update [pkg]       [--dir DIR]        re-resolve within declared ranges
 //	esgun outdated           [--dir DIR]        show newer available versions
 //	esgun audit              [--dir DIR]        vulnerability report (OSV)
-//	esgun build  [--dir DIR]                    bundle entry points with esbuild
-//	esgun watch  [--dir DIR]                    rebuild on change (fsnotify + poll)
+//	esgun build  [--dir DIR] [--profile NAME]   bundle entry points with esbuild
+//	esgun watch  [--dir DIR] [--profile NAME]   rebuild on change (fsnotify + poll)
 //
-// Flags: --dir DIR, --registry URL, --frozen, --dev, -u
+// Flags: --dir DIR, --registry URL, --profile NAME, --frozen, --dev, -u
 package main
 
 import (
@@ -27,7 +27,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: esgun <deps|ci|install|add|remove|update|outdated|audit|build|watch> [--dir DIR] [--registry URL] [--frozen] [--dev] [-u]")
+		fmt.Fprintln(os.Stderr, "usage: esgun <deps|ci|install|add|remove|update|outdated|audit|build|watch> [--dir DIR] [--profile NAME] [--registry URL] [--frozen] [--dev] [-u]")
 		os.Exit(2)
 	}
 	args := os.Args[2:]
@@ -36,6 +36,9 @@ func main() {
 	frozen := false
 	dev := false
 	regURL := ""
+	profile := ""
+	profileSet := false
+	var flagErr error
 	rest := []string{}
 	for i := 0; i < len(args); i++ {
 		switch {
@@ -45,6 +48,14 @@ func main() {
 		case args[i] == "--registry" && i+1 < len(args):
 			regURL = args[i+1]
 			i++
+		case args[i] == "--profile":
+			profileSet = true
+			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+				flagErr = fmt.Errorf("--profile requires a name")
+			} else {
+				profile = args[i+1]
+				i++
+			}
 		case args[i] == "-u":
 			force = true
 		case args[i] == "--frozen":
@@ -64,15 +75,32 @@ func main() {
 	}
 
 	var err error
+	if flagErr != nil {
+		err = flagErr
+	} else if profileSet && os.Args[1] != "build" && os.Args[1] != "watch" {
+		err = fmt.Errorf("--profile is only valid with build or watch")
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
 	switch os.Args[1] {
 	case "deps", "install":
 		err = runDeps(dir, force, nil, frozen)
 	case "ci":
 		err = runDeps(dir, false, nil, true)
 	case "build":
-		err = build(dir)
+		if len(rest) > 0 {
+			err = fmt.Errorf("usage: esgun build [--dir DIR] [--profile NAME]")
+		} else {
+			err = build(dir, profile)
+		}
 	case "watch":
-		err = watch(dir)
+		if len(rest) > 0 {
+			err = fmt.Errorf("usage: esgun watch [--dir DIR] [--profile NAME]")
+		} else {
+			err = watch(dir, profile)
+		}
 	case "add":
 		if len(rest) == 0 {
 			err = fmt.Errorf("usage: esgun add <pkg>[@range] [--dev] [--dir DIR]")
@@ -104,7 +132,7 @@ func main() {
 		}
 		err = nil
 	default:
-		fmt.Fprintln(os.Stderr, "usage: esgun <deps|ci|install|add|remove|update|outdated|audit|build|watch> [--dir DIR] [--registry URL] [--frozen] [--dev] [-u]")
+		fmt.Fprintln(os.Stderr, "usage: esgun <deps|ci|install|add|remove|update|outdated|audit|build|watch> [--dir DIR] [--profile NAME] [--registry URL] [--frozen] [--dev] [-u]")
 		os.Exit(2)
 	}
 	if err != nil {

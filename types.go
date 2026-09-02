@@ -18,6 +18,13 @@ type buildManifest struct {
 	Outdir string `json:"outdir,omitempty"`
 	// Entry is the bundle entry set: files or single-level globs.
 	Entry []string `json:"entry"`
+	// EntrySets and Profiles enable library-style multi-profile builds. They
+	// are intentionally separate from Entry so existing manifests retain their
+	// historical single minified ESM build.
+	EntrySets map[string][]entrySpec  `json:"entrySets,omitempty"`
+	Profiles  map[string]buildProfile `json:"profiles,omitempty"`
+	// Target is the shared JavaScript language target (default "es2020").
+	Target string `json:"target,omitempty"`
 	// Resolve adds extra module resolution roots (e.g. vendor/node_modules).
 	Resolve []string `json:"resolve,omitempty"`
 	// Copies are file-or-directory pairs copied verbatim (from -> to), both
@@ -29,6 +36,26 @@ type buildManifest struct {
 	TreeCopies []treeCopySpec `json:"treeCopies,omitempty"`
 	// Watch lists directories to watch in watch mode (default ["src"]).
 	Watch []string `json:"watch,omitempty"`
+}
+
+// entrySpec maps one input (or glob) to a stable output path. Output omits the
+// generated extension and may contain [name] when Input is a glob.
+type entrySpec struct {
+	Input  string `json:"input"`
+	Output string `json:"output"`
+}
+
+// buildProfile is one named esbuild invocation. Profiles are executed
+// serially so a multi-format library build has a predictable resource ceiling.
+type buildProfile struct {
+	EntrySets []string `json:"entrySets"`
+	Outdir    string   `json:"outdir"`
+	Format    string   `json:"format"`
+	Splitting bool     `json:"splitting,omitempty"`
+	Minify    bool     `json:"minify,omitempty"`
+	Suffix    string   `json:"suffix,omitempty"`
+	// Target overrides the shared target for this profile.
+	Target string `json:"target,omitempty"`
 }
 
 type copySpec struct {

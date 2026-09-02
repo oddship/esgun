@@ -1,0 +1,36 @@
+{
+  "root": "dist",
+  "target": "esnext",
+  "entrySets": {
+    "app": [
+      { "input": "src/main.js", "output": "library" }
+    ],
+    "styles": [
+      { "input": "src/styles/*.css", "output": "[name]" }
+    ]
+  },
+  "profiles": {
+    "css-readable": {
+      "entrySets": ["styles"],
+      "outdir": "dist",
+      "format": "esm"
+    },
+    "esm-readable": {
+      "entrySets": ["app"],
+      "outdir": "dist",
+      "format": "esm",
+      "suffix": ".esm"
+    },
+    "iife-min": {
+      "entrySets": ["app"],
+      "outdir": "dist",
+      "format": "iife",
+      "minify": true,
+      "suffix": ".min"
+    }
+  },
+  "copies": [
+    { "from": "assets", "to": "dist/assets" }
+  ],
+  "watch": ["src"]
+}
