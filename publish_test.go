@@ -145,3 +145,42 @@ func TestPreserveRootRejectsOutputSymlink(t *testing.T) {
 		t.Fatal("rejection changed files")
 	}
 }
+
+func TestPublicationCopyKeepsPrivateDirectoriesPrivateDuringCopy(t *testing.T) {
+	dir := t.TempDir()
+	src, dst := filepath.Join(dir, "source"), filepath.Join(dir, "destination")
+	mustWrite(t, filepath.Join(src, "private/old.txt"), "private")
+	if err := os.Chmod(filepath.Join(src, "private"), 0500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(filepath.Join(src, "private"), 0700); os.Chmod(filepath.Join(dst, "private"), 0700) })
+	before, err := os.Stat(filepath.Join(src, "private"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	copied := false
+	err = copyPublicationFiles(src, dst, func(from, to string) error {
+		info, err := os.Stat(filepath.Dir(to))
+		if err != nil {
+			return err
+		}
+		if info.Mode().Perm()&0077 != before.Mode().Perm()&0077 {
+			t.Fatalf("private directory was widened before file copy: %v", info.Mode())
+		}
+		copied = true
+		return copyFile(from, to)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !copied {
+		t.Fatal("file copy was not exercised")
+	}
+	after, err := os.Stat(filepath.Join(dst, "private"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Mode().Perm() != before.Mode().Perm() {
+		t.Fatal("final directory mode differs")
+	}
+}

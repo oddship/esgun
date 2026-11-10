@@ -96,9 +96,10 @@ func clearOutputContents(root string) error {
 // Preserve nested directory permissions in backups and restores, without
 // changing the mounted root's own permissions or the private backup root.
 func copyPublicationTree(src, dst string) error {
-	if err := copyTree(src, dst); err != nil {
-		return err
-	}
+	return copyPublicationFiles(src, dst, copyFile)
+}
+
+func copyPublicationFiles(src, dst string, copyFile func(string, string) error) error {
 	type directory struct {
 		path string
 		mode os.FileMode
@@ -108,14 +109,29 @@ func copyPublicationTree(src, dst string) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() || path == src {
-			return nil
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("refusing to publish symlink %s", path)
+		}
+		if !info.IsDir() && !info.Mode().IsRegular() {
+			return fmt.Errorf("refusing to publish non-regular file %s", path)
 		}
 		rel, err := filepath.Rel(src, path)
 		if err != nil {
 			return err
 		}
-		dirs = append(dirs, directory{filepath.Join(dst, rel), info.Mode().Perm()})
+		target := filepath.Join(dst, rel)
+		if !info.IsDir() {
+			return copyFile(path, target)
+		}
+		if rel == "." {
+			return os.MkdirAll(target, 0755)
+		}
+		// Permit the owner to populate read-only source directories without ever
+		// giving group/other users more access than the source directory allowed.
+		if err := os.MkdirAll(target, info.Mode().Perm()|0700); err != nil {
+			return err
+		}
+		dirs = append(dirs, directory{target, info.Mode().Perm()})
 		return nil
 	}); err != nil {
 		return err
