@@ -213,6 +213,31 @@ stale outputs from other profiles. Builds are assembled in a sibling staging
 directory and replace the previous output only after every bundle and copy
 succeeds. Output aliases and copy destinations are collision checked.
 
+### Precompressed assets
+
+Set `gzip` to precompress selected extensions after bundling and copying, before
+staged output is published. This applies to both legacy and profile builds, and
+to every rebuild in watch mode:
+
+```json
+{
+  "entry": ["src/main.js"],
+  "gzip": {
+    "extensions": [".js", ".css", ".svg"],
+    "level": 9,
+    "removeOriginal": true
+  }
+}
+```
+
+`level` defaults to 9 and accepts 0–9. Extensions must be non-empty suffixes such
+as `.js` (not paths or globs); `.gz` is rejected. Originals are retained by default.
+Compression is disabled when `gzip` is absent. Existing `.gz` destinations,
+including case-insensitive collisions, fail the build without replacing the
+previous output. Gzip headers omit filenames and timestamps for reproducible
+output. Servers must serve `.gz` files with the original content type and the
+appropriate `Content-Encoding` header.
+
 ## watch
 
 Rebuilds on any change under the configured `watch` dirs (default `src`,
