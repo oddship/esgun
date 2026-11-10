@@ -238,6 +238,32 @@ previous output. Gzip headers omit filenames and timestamps for reproducible
 output. Servers must serve `.gz` files with the original content type and the
 appropriate `Content-Encoding` header.
 
+### Output directories mounted as volumes
+
+By default esgun publishes a completed stage by renaming the output root. If
+`root` is a Docker volume or another mount point, enable `preserveRoot`:
+
+```json
+{
+  "root": "dist",
+  "preserveRoot": true,
+  "entry": ["src/main.js"]
+}
+```
+
+This preserves the root directory's identity, replaces its contents, and removes
+stale files. Legacy and profile builds (including watch rebuilds) use the same
+publishing mode. Compilation and copy failures leave the live output untouched.
+Existing files are backed up before publication; publication errors restore them.
+If restoration also fails, the error reports the retained backup directory for
+manual recovery. Symlinks and special files in staged or previous output are
+rejected before publication.
+
+This mode copies files so it also works across a mount's filesystem boundary.
+It needs space for a backup and does not provide an atomic directory swap: readers
+can see a partially populated directory during publication. The default remains
+the rename-based publisher; `preserveRoot` is opt-in.
+
 ## watch
 
 Rebuilds on changes to `esgun.config.json` (including atomic editor saves) or the

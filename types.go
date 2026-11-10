@@ -12,8 +12,10 @@ type pkgJSON struct {
 // like vite.config / eslint.config), so gun stays generic and each project's
 // specifics are data, not code.
 type buildManifest struct {
-	// Root is removed and recreated at build start (default "dist").
+	// Root is the staged build output root (default "dist").
 	Root string `json:"root,omitempty"`
+	// PreserveRoot publishes contents without renaming the output root itself.
+	PreserveRoot bool `json:"preserveRoot,omitempty"`
 	// Outdir is the esbuild output directory (default "dist/js").
 	Outdir string `json:"outdir,omitempty"`
 	// Entry is the bundle entry set: files or single-level globs.

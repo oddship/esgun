@@ -150,7 +150,7 @@ func buildLegacy(dir, rootPath string, cfg *buildManifest) error {
 	if err := compressOutput(stage, cfg.Gzip); err != nil {
 		return err
 	}
-	if err := replaceOutputRoot(rootPath, stage); err != nil {
+	if err := publishOutput(rootPath, stage, cfg.PreserveRoot); err != nil {
 		return err
 	}
 	fmt.Printf("dist ready: %s\n", rootPath)
@@ -398,7 +398,7 @@ func buildProfilesStaged(dir, rootPath string, cfg *buildManifest, profiles []pr
 	if err := compressOutput(stage, cfg.Gzip); err != nil {
 		return err
 	}
-	return replaceOutputRoot(rootPath, stage)
+	return publishOutput(rootPath, stage, cfg.PreserveRoot)
 }
 
 func writeBuildOutputs(outputs []api.OutputFile, owners map[string]string, owner string) error {
