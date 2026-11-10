@@ -55,7 +55,7 @@ func TestGzipBuildModes(t *testing.T) {
 					t.Fatal(err)
 				}
 				expected := map[string][]byte{}
-				_ = filepath.WalkDir(filepath.Join(dir, "dist"), func(path string, e os.DirEntry, err error) error {
+				if err := filepath.WalkDir(filepath.Join(dir, "dist"), func(path string, e os.DirEntry, err error) error {
 					if err != nil {
 						return err
 					}
@@ -63,7 +63,9 @@ func TestGzipBuildModes(t *testing.T) {
 						expected[path] = []byte(assertFile(t, path))
 					}
 					return nil
-				})
+				}); err != nil {
+					t.Fatal(err)
+				}
 				cfg["gzip"] = map[string]any{"extensions": []string{".js", ".css", ".svg"}, "removeOriginal": remove}
 				raw, _ = json.Marshal(cfg)
 				mustWrite(t, config, string(raw))
