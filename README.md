@@ -215,12 +215,14 @@ succeeds. Output aliases and copy destinations are collision checked.
 
 ## watch
 
-Rebuilds on any change under the configured `watch` dirs (default `src`,
-100 ms debounce). Uses inotify via [fsnotify](https://github.com/fsnotify/fsnotify)
+Rebuilds on changes to `esgun.config.json` (including atomic editor saves) or the
+configured `watch` dirs (default `src`, 100 ms debounce). Uses inotify via [fsnotify](https://github.com/fsnotify/fsnotify)
 plus a 300 ms mtime poll as a fallback, because host-mounted workspaces may not
 deliver inotify events for host-side editor writes. `--profile NAME` applies the
 same selection as `build`. Changes during a build coalesce into at most one
-follow-up build.
+follow-up build. Manifest edits reload and revalidate the watch directories and
+output root. Invalid watch settings keep the previous output and subscriptions
+so a corrected manifest can recover.
 
 ## audit
 
