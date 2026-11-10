@@ -36,6 +36,8 @@ type buildManifest struct {
 	// (a file or directory, relative to From) is copied under To preserving its
 	// relative path.
 	TreeCopies []treeCopySpec `json:"treeCopies,omitempty"`
+	// Gzip optionally precompresses selected output extensions before publication.
+	Gzip *gzipSpec `json:"gzip,omitempty"`
 	// Watch lists directories to watch in watch mode (default ["src"]).
 	Watch []string `json:"watch,omitempty"`
 }
@@ -113,4 +115,12 @@ type queued struct {
 	name     string
 	spec     string
 	optional bool
+}
+
+// gzipSpec applies to bundles and copied assets. Originals are retained unless
+// removeOriginal is set; compression is disabled when the gzip field is absent.
+type gzipSpec struct {
+	Extensions     []string `json:"extensions"`
+	Level          *int     `json:"level,omitempty"`
+	RemoveOriginal bool     `json:"removeOriginal,omitempty"`
 }

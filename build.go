@@ -48,6 +48,9 @@ func build(dir, selectedProfile string) error {
 	if cfg.Target != "" && cfg.Target != "es2020" && cfg.Target != "esnext" {
 		return fmt.Errorf("target must be es2020 or esnext")
 	}
+	if err := validateGzip(cfg.Gzip); err != nil {
+		return err
+	}
 	outRoot := cfg.Root
 	if outRoot == "" {
 		outRoot = "dist"
@@ -142,6 +145,9 @@ func buildLegacy(dir, rootPath string, cfg *buildManifest) error {
 	}
 	fmt.Printf("bundled %d entry points\n", len(entrypoints))
 	if err := runCopies(dir, rootPath, stage, cfg, owners); err != nil {
+		return err
+	}
+	if err := compressOutput(stage, cfg.Gzip); err != nil {
 		return err
 	}
 	if err := publishOutput(rootPath, stage, cfg.PreserveRoot); err != nil {
@@ -387,6 +393,9 @@ func buildProfilesStaged(dir, rootPath string, cfg *buildManifest, profiles []pr
 		}
 	}
 	if err := runCopies(dir, rootPath, stage, cfg, owners); err != nil {
+		return err
+	}
+	if err := compressOutput(stage, cfg.Gzip); err != nil {
 		return err
 	}
 	return publishOutput(rootPath, stage, cfg.PreserveRoot)
