@@ -33,7 +33,12 @@ anything touches disk.
 
 ## Install
 
-Three ways, depending on how you want to consume it:
+Prebuilt binaries for Linux, macOS, and Windows (amd64 and arm64) are available
+on the [Releases page](https://github.com/oddship/esgun/releases/latest). Extract
+the archive for your platform and place `esgun` (or `esgun.exe`) on your PATH.
+Each release includes `SHA256SUMS` for verifying the downloaded archives.
+
+To install from source, choose one of these options:
 
 **1. PATH binary** (for ad-hoc use anywhere):
 
@@ -52,7 +57,7 @@ project's `go.mod` so the version is locked with the rest of the toolchain and
 contributors get it automatically:
 
 ```sh
-go get tool github.com/oddship/esgun@latest
+go get -tool github.com/oddship/esgun@latest
 ```
 
 This adds `tool github.com/oddship/esgun` to `go.mod` (with the resolved
@@ -63,7 +68,7 @@ from anywhere:
 go tool esgun deps
 ```
 
-Bumping the tool is a normal `go get tool github.com/oddship/esgun@vX.Y.Z`,
+Bumping the tool is a normal `go get -tool github.com/oddship/esgun@vX.Y.Z`,
 same as any other Go dependency. The first `go tool esgun` run compiles it;
 subsequent runs use the build cache.
 
@@ -150,6 +155,39 @@ warnings instead of errors.
 `package.json` stays fully standard: deps plus a conventional `scripts` block
 (`"build": "esgun build"`, `"watch": "esgun watch"`).
 
+### Compressed output in a development volume
+
+This complete example combines copies, compression, config-aware watch mode,
+and a stable output directory for Docker volumes:
+
+```json
+{
+  "root": "dist",
+  "outdir": "dist/js",
+  "entry": ["src/main.js"],
+  "copies": [{ "from": "assets", "to": "dist/assets" }],
+  "watch": ["src", "assets"],
+  "gzip": {
+    "extensions": [".js", ".css", ".svg"],
+    "level": 9,
+    "removeOriginal": true
+  },
+  "preserveRoot": true
+}
+```
+
+Run `esgun build` for a one-shot build or `esgun watch` while developing. Bundles
+and copies are compressed in staging before publication. The server must map
+requests for assets to their `.gz` variants and send the original content type
+with `Content-Encoding: gzip`; esgun does not rewrite asset URLs.
+
+All configured paths must stay within the project directory after resolving
+symlinks. Copy destinations must also stay inside `root`. Use a dedicated output
+directory: esgun owns its contents and removes stale files on successful builds.
+Watch directories must not overlap the output root. `gzip` is disabled and
+`preserveRoot` is false unless explicitly configured, preserving the default
+uncompressed, rename-based publishing behavior.
+
 ### Named build profiles
 
 Libraries that publish several formats can replace the legacy `entry` and
@@ -211,7 +249,8 @@ a library should preserve modern syntax for smaller published artifacts.
 replaces the complete `root` and runs the shared copies once, so it never leaves
 stale outputs from other profiles. Builds are assembled in a sibling staging
 directory and replace the previous output only after every bundle and copy
-succeeds. Output aliases and copy destinations are collision checked.
+succeeds (including optional compression). Output aliases and copy destinations
+are collision checked.
 
 ### Precompressed assets
 
@@ -257,7 +296,9 @@ publishing mode. Compilation and copy failures leave the live output untouched.
 Existing files are backed up before publication; publication errors restore them.
 If restoration also fails, the error reports the retained backup directory for
 manual recovery. Symlinks and special files in staged or previous output are
-rejected before publication.
+rejected before publication. A process crash or interruption during this
+non-atomic publication can also leave partial output and a backup; the next
+successful build replaces the output contents.
 
 This mode copies files so it also works across a mount's filesystem boundary.
 It needs space for a backup and does not provide an atomic directory swap: readers
@@ -273,13 +314,20 @@ deliver inotify events for host-side editor writes. `--profile NAME` applies the
 same selection as `build`. Changes during a build coalesce into at most one
 follow-up build. Manifest edits reload and revalidate the watch directories and
 output root. Invalid watch settings keep the previous output and subscriptions
-so a corrected manifest can recover.
+so a corrected manifest can recover without restarting the watcher. The manifest
+must parse, and its selected profile and watch paths must be valid, when watch
+mode starts. Source and config changes made during
+a build are picked up by subsequent rebuilds.
 
 ## audit
 
 `esgun audit` queries the free [OSV](https://osv.dev) database for every
 resolved version in the lockfile and exits 1 if any vulnerabilities are found;
 drop-in `npm audit` behavior for CI, without a node runtime.
+
+## Release history
+
+See [CHANGELOG.md](CHANGELOG.md) for versioned changes and compatibility notes.
 
 ## Status
 
