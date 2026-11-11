@@ -325,6 +325,13 @@ a build are picked up by subsequent rebuilds.
 resolved version in the lockfile and exits 1 if any vulnerabilities are found;
 drop-in `npm audit` behavior for CI, without a node runtime.
 
+## Development checks
+
+Run `go vet ./...` and `go test -race -count=1 ./...` before submitting changes.
+GitHub Actions runs these checks on the minimum supported Go version and the
+current stable release. The suite includes a Listmonk-style build/watch fixture
+combining entry globs, copied CSS, gzip-only output, and a preserved output root.
+
 ## Release history
 
 See [CHANGELOG.md](CHANGELOG.md) for versioned changes and compatibility notes.
